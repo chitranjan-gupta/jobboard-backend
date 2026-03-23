@@ -14,6 +14,7 @@ python-dotenv = "==1.2.1"
 psycopg2-binary = "==2.9.9"
 sqlparse = "==0.5.5"
 typing-extensions = "==4.15.0"
+gunicorn = "*"
 
 [dev-packages]
 
