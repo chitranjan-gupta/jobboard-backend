@@ -11,16 +11,27 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         if username and password:
             from django.contrib.auth.models import User
+            from django.contrib.auth.hashers import check_password
+            from .models import PendingUser
+
             user = User.objects.filter(username=username).first()
-            if user and user.check_password(password):
-                if not user.is_active:
-                    pending_user = PendingUser.objects.filter(username=username).first()
-                    if pending_user:
-                        if pending_user.status == 'revoked':
-                            raise AuthenticationFailed("Your access is revoked.", code="user_revoked")
-                        if pending_user.status == 'pending':
-                            raise AuthenticationFailed("Your account is pending approval.", code="user_pending")
-                    # Otherwise, default validation will raise the generic inactive error
+            if user:
+                if user.check_password(password):
+                    if not user.is_active:
+                        pending_user = PendingUser.objects.filter(username=username).first()
+                        if pending_user:
+                            if pending_user.status == 'revoked':
+                                raise AuthenticationFailed("Your access is revoked.", code="user_revoked")
+                            if pending_user.status == 'pending':
+                                raise AuthenticationFailed("Your account is pending approval.", code="user_pending")
+            else:
+                # Check PendingUser if no Django User exists (could be correct credentials but not yet approved)
+                pending_user = PendingUser.objects.filter(username=username).first()
+                if pending_user and check_password(password, pending_user.password):
+                    if pending_user.status == 'pending':
+                        raise AuthenticationFailed("access is pending from admin", code="user_pending")
+                    if pending_user.status == 'rejected':
+                        raise AuthenticationFailed("Your registration request was rejected.", code="user_rejected")
                     
         return super().validate(attrs)
 

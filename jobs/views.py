@@ -128,7 +128,7 @@ class JobViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminUserOrReadOnly]
     filter_backends = [filters.SearchFilter, DjangoFilterBackend, filters.OrderingFilter]
     search_fields = ["title", "location", "description", "company_obj__name"]
-    filterset_fields = ["status"]
+    filterset_fields = ["status", "company_obj__name"]
     ordering_fields = ["postedAt", "title", "id"]
     ordering = ["-postedAt"]
 
@@ -472,6 +472,30 @@ def revoke_user(request, pk):
     pending.status = "revoked"
     pending.save()
     return Response({"detail": f"{pending.username}\u2019s access has been revoked."})
+
+
+@api_view(["DELETE"])
+@permission_classes([IsAdminUser])
+def delete_user_permanently(request, pk):
+    """Admin only: permanently delete a user's auth records (PendingUser & User), but keep their content."""
+    try:
+        pending = PendingUser.objects.get(pk=pk)
+    except PendingUser.DoesNotExist:
+        return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    username = pending.username
+    
+    # 1. Delete associated Django User if exists
+    try:
+        django_user = User.objects.get(username=username)
+        django_user.delete()
+    except User.DoesNotExist:
+        pass
+
+    # 2. Delete PendingUser record
+    pending.delete()
+    
+    return Response({"detail": f"All authentication records for {username} have been purged. Content preserved."})
 
 
 @api_view(["POST"])
