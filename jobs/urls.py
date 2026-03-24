@@ -17,6 +17,8 @@ from .views import (
     reject_pending_user,
     revoke_user,
     subadmin_profile,
+    UserListView,
+    SalaryAggregateView,
 )
 
 
@@ -26,10 +28,12 @@ router.register(r"companies", CompanyViewSet, basename="company")
 
 urlpatterns = [
     path("jobs/pending/", list_pending_jobs),
+    path("jobs/salaries-aggregate/", SalaryAggregateView.as_view(), name="salaries-aggregate"),
     path("companies/pending/", list_pending_companies),
     path("companies/bulk_upload/", CompanyViewSet.as_view({"post": "bulk_upload"})),
     path("", include(router.urls)),
     path("auth/register/", register_pending_user),
+    path("auth/users/", UserListView.as_view(), name="auth-users"),
     path("auth/pending-users/", list_pending_users),
     path("auth/approve-user/<int:pk>/", approve_pending_user),
     path("auth/reject-user/<int:pk>/", reject_pending_user),

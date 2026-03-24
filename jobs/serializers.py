@@ -1,6 +1,28 @@
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework.exceptions import AuthenticationFailed
 
 from .models import Company, Job, PendingUser, SubadminProfile
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        username = attrs.get(self.username_field)
+        password = attrs.get('password')
+
+        if username and password:
+            from django.contrib.auth.models import User
+            user = User.objects.filter(username=username).first()
+            if user and user.check_password(password):
+                if not user.is_active:
+                    pending_user = PendingUser.objects.filter(username=username).first()
+                    if pending_user:
+                        if pending_user.status == 'revoked':
+                            raise AuthenticationFailed("Your access is revoked.", code="user_revoked")
+                        if pending_user.status == 'pending':
+                            raise AuthenticationFailed("Your account is pending approval.", code="user_pending")
+                    # Otherwise, default validation will raise the generic inactive error
+                    
+        return super().validate(attrs)
 
 
 class SubadminProfileSerializer(serializers.ModelSerializer):
@@ -13,10 +35,27 @@ class SubadminProfileSerializer(serializers.ModelSerializer):
 
 
 class CompanySerializer(serializers.ModelSerializer):
+    job_count = serializers.IntegerField(read_only=True)
+    location_types = serializers.SerializerMethodField()
+
     class Meta:
         model = Company
-        fields = "__all__"
-        read_only_fields = ["status", "submittedBy"]
+        fields = [
+            "id",
+            "name",
+            "logoUrl",
+            "description",
+            "website",
+            "status",
+            "submittedBy",
+            "job_count",
+            "location_types",
+        ]
+        read_only_fields = ["status", "submittedBy", "job_count", "location_types"]
+
+    def get_location_types(self, obj):
+        # We only want to show location types for APPROVED jobs
+        return list(obj.jobs.filter(status="approved").values_list("locationType", flat=True).distinct())
 
 
 class JobSerializer(serializers.ModelSerializer):
